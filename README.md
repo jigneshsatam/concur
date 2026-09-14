@@ -117,12 +117,17 @@ examples/
 You can execute any of these scenarios locally from the root of your workspace:
 
 # Run the basic introduction program
+```go
 go run ./examples/01_basic/main.go
+```
 
 # Run the 12-signature syntax cheat-sheet reference block
+```go
 go run ./examples/02_variations/main.go
+```
 
 # Run the complex multi-stage streaming pipeline
+```go
 go run ./examples/03_advanced_pipeline/main.go
 ```
 
