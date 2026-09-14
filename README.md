@@ -2,17 +2,20 @@
 
 `concur` is a lightweight, type-safe, production-ready Go library that implements the **Fan-Out / Fan-In** concurrency pattern using Go Generics.
 
-It distributes resource-heavy workloads across a controlled pool of parallel workers and multiplexes their results back into a single fanned-in stream, completely preventing unbounded goroutine leaks and memory spikes.
+It distributes resource-heavy workloads across a controlled pool of parallel workers and multiplexes their results back into a single fanned-in stream, completely preventing unbounded goroutine leaks, data races, and memory spikes.
 
 ---
 
 ## ✨ Features
 
 - **Strict Type Safety:** Built using Go Generics—no slow `interface{}` reflections or dynamic runtime type-casting.
-- **Bounded Scaling:** Maintains a strict, maximum worker pool size to shield system resources.
-- **Configurable Error Strategies:** Choose whether an internal item failure gracefully cancels the entire process (`StopOnError: true`) or silently logs and continues (`StopOnError: false`).
-- **Context-Aware:** Native structural support for `context.Context` cancellation and timeouts.
+- **Bounded Scaling:** Enforces a strict, maximum worker pool size to protect system resources.
+- **Configurable Error Strategies:** Choose whether an error or panic halts the entire pipeline instantly (`StopOnError: true`) or lets processing continue (`StopOnError: false`).
+- **Context-Aware:** Native support for `context.Context` cancellation and timeouts.
+- **Automated Panic Recovery:** Built-in catch routines capture user function panics, seamlessly translating them into manageable Go errors.
+- **Zero Signature Friction:** Accepts a single robust API format. Users can wrap **any function signature** using standard Go closures without writing tedious wrapper boilerplate.
 
+---
 
 ## 💎 Why Use `concur`? (The Pros)
 
@@ -22,7 +25,7 @@ Implementing manual fan-out/fan-in pipelines requires writing complex boilerplat
 - **⚡ Native Type Safety (Zero Reflection):** Built fully using Go Generics. It enforces static compile-time type check safety without resorting to slow runtime `interface{}` type casting or reflection.
 - **🛑 Advanced Error Interception:** You can toggle the `StopOnError` mode. If a single item fails, it immediately triggers an internal structural context cancellation to stop all other active workers, avoiding wasted compute.
 - **🫧 Zero Goroutine Leaks:** The engine guarantees that all worker sub-routines cleanly exit and internal contexts are entirely torn down, even if down-stream channels stop reading data early.
-- **🧩 Adaptable to "Any Function Signature":** By packing complex arguments into single custom input/output structs, you can process custom business functions with any number of parameters.
+- **🧩 Adaptable to "Any Function Signature":** By packing complex arguments into single custom input/output structs or leveraging direct function closures, you can map any business function signature cleanly into the pipeline.
 
 ---
 
@@ -34,9 +37,9 @@ go get github.com/jigneshsatam/concur
 
 ---
 
-## 🏎️ Usage Example
+## 🏎️ Core Usage Example
 
-Here is how to map **3 custom input parameters** into **3 custom output parameters** using a pool that automatically defaults to **4 parallel workers** while opting to continue on isolated item errors.
+Here is how to map a slice of custom structural inputs across a pool of parallel workers while using inline closure adaptation and continuing past isolated items errors.
 
 ```go
 package main
@@ -54,13 +57,11 @@ import (
 type ProcessInput struct {
 	TaskID   int
 	TargetIP string
-	Payload  []byte
 }
 
 // Wrap your multiple function return values
 type ProcessOutput struct {
 	BytesWritten int
-	Duration     time.Duration
 	IsVerified   bool
 }
 
@@ -69,40 +70,188 @@ func main() {
 
 	// 1. Populate the work stream queue
 	inputChan := make(chan ProcessInput, 3)
-	inputChan <- ProcessInput{TaskID: 1, TargetIP: "192.168.1.5", Payload: []byte("ping")}
-	inputChan <- ProcessInput{TaskID: 2, TargetIP: "10.0.0.1", Payload: []byte("malformed")} // Error item
-	inputChan <- ProcessInput{TaskID: 3, TargetIP: "192.168.1.9", Payload: []byte("secure-auth")}
+	inputChan <- ProcessInput{TaskID: 1, TargetIP: "192.168.1.5"}
+	inputChan <- ProcessInput{TaskID: 2, TargetIP: "10.0.0.1"} // Malformed error item
+	inputChan <- ProcessInput{TaskID: 3, TargetIP: "192.168.1.9"}
 	close(inputChan)
 
-	// 2. Define the execution worker function
-	networkWorker := func(ctx context.Context, req ProcessInput) (ProcessOutput, error) {
-		if req.TargetIP == "10.0.0.1" {
-			return ProcessOutput{}, errors.New("network routing table rejection")
-		}
-		time.Sleep(50 * time.Millisecond) // Simulating network lag
-		return ProcessOutput{BytesWritten: len(req.Payload), Duration: 50 * time.Millisecond, IsVerified: true}, nil
-	}
-
-	// 3. Configure behavior.
-	// Leaving Workers at 0 automatically defaults to 4 workers.
+	// 2. Configure behavior (0 workers automatically defaults to 4)
 	opts := concur.Options{
 		Workers:     0,
 		StopOnError: false, // Continue executing the queue if an item errors out
 	}
 
-	// 4. Fire up the fanned-out processing pool
-	resultsStream := concur.Process(ctx, inputChan, opts, networkWorker)
+	// 3. Fire up the fanned-out pool using a Closure Adapter
+	resultsStream := concur.Process(ctx, inputChan, opts, func(ctx context.Context, item ProcessInput) (ProcessOutput, error) {
+		if item.TargetIP == "10.0.0.1" {
+			return ProcessOutput{}, errors.New("network routing rejection")
+		}
+		return ProcessOutput{BytesWritten: 128, IsVerified: true}, nil
+	})
 
-	// 5. Consume fanned-in aggregated results natively
+	// 4. Consume fanned-in aggregated results natively
 	for res := range resultsStream {
 		if res.Err != nil {
-			fmt.Printf("[❌ Error Caught]: %v. Moving to next queue item...\n", res.Err)
+			fmt.Printf("[❌ Error/Panic Caught]: %v\n", res.Err)
 			continue
 		}
+		fmt.Printf("[✅ Success] Bytes: %d | Validated: %t\n", res.Value.BytesWritten, res.Value.IsVerified)
+	}
+}
+```
 
-		out := res.Value
-		fmt.Printf("[✅ Success] Task Written: %d bytes | Latency: %v | Validated: %t\n",
-			out.BytesWritten, out.Duration, out.IsVerified)
+---
+
+## 📂 Repository Structure & Examples
+
+The repository is structured as a step-by-step learning path, ranging from basic introduction programs to advanced multi-stage data stream systems:
+
+examples/  
+|── 01_basic/  
+│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── main.go           # Pure onboarding (Squaring numbers in parallel)  
+|── 02_variations/  
+│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── main.go           # Master reference layout for all 12 combinations  
+|── 03_advanced_pipeline/  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── main.go           # Advanced multi-stage streaming pipeline 🔥  
+
+You can execute any of these scenarios locally from the root of your workspace:
+
+# Run the basic introduction program
+go run ./examples/01_basic/main.go
+
+# Run the 12-signature syntax cheat-sheet reference block
+go run ./examples/02_variations/main.go
+
+# Run the complex multi-stage streaming pipeline
+go run ./examples/03_advanced_pipeline/main.go
+```
+
+---
+
+## 🧩 Adapting All 12 Signature Variations
+
+Because `concur` uses Go's type-inference engine, **you never need to write messy bracketed types like `[int, string]`**. You can adapt all 12 combinations of inputs and outputs directly at the call-site using standard Go anonymous closures:
+
+### Group 1: Signatures with Context & Item `(ctx, item)`
+
+#### 1. Full Match: `func(ctx, In) (Out, error)`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (string, error) {
+	return myFunc(ctx, item)
+})
+```
+
+#### 2. No Error: `func(ctx, In) Out`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (string, error) {
+	return myFunc(ctx, item), nil
+})
+```
+
+#### 3. Side-Effect Only with Error: `func(ctx, In) error`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (struct{}, error) {
+	return struct{}{}, myFunc(ctx, item)
+})
+```
+
+#### 4. Pure Side-Effect: `func(ctx, In)`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (struct{}, error) {
+	myFunc(ctx, item)
+	return struct{}{}, nil
+})
+```
+
+---
+
+### Group 2: Signatures with Item Only `(item)`
+
+#### 5. Standard Go Return: `func(In) (Out, error)`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (string, error) {
+	return myFunc(item)
+})
+```
+
+#### 6. Pure Transformation: `func(In) Out`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (string, error) {
+	return myFunc(item), nil
+})
+```
+
+#### 7. Side-Effect with Error: `func(In) error`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (struct{}, error) {
+	return struct{}{}, myFunc(item)
+})
+```
+
+#### 8. Local Side-Effect: `func(In)`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (struct{}, error) {
+	myFunc(item)
+	return struct{}{}, nil
+})
+```
+
+---
+
+### Group 3: Standalone Background Tasks `()`
+*(Note: When using these, the channel stream acts strictly as a worker queue counter to trigger background operations).*
+
+#### 9. Task with Result and Error: `func() (Out, error)`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, _ int) (string, error) {
+	return myFunc()
+})
+```
+
+#### 10. Task with Result Only: `func() Out`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, _ int) (string, error) {
+	return myFunc(), nil
+})
+```
+
+#### 11. Task with Error Only: `func() error`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, _ int) (struct{}, error) {
+	return struct{}{}, myFunc()
+})
+```
+
+#### 12. Pure Standalone Job: `func()`
+```go
+out := concur.Process(ctx, in, opts, func(ctx context.Context, _ int) (struct{}{}, error) {
+	myFunc()
+	return struct{}{}, nil
+})
+```
+
+---
+
+## ⚡ Panic Safety Guardrails
+
+Unexpected runtime panics inside your closure workloads will **not** bring down your entire Go application server infrastructure.
+
+`concur` wraps executions in an inner recovery loop. If a closure panics, the worker captures the payload, normalizes it into a standard Go error structure format (`worker panicked: <reason>`), and pushes it down the fanned-in result stream:
+
+```go
+opts := concur.Options{StopOnError: false} // Keep other workers alive if one panics
+
+out := concur.Process(ctx, in, opts, func(ctx context.Context, item int) (int, error) {
+	if item == 42 {
+		panic("malformed byte payload crash!")
+	}
+	return item * 2, nil
+})
+
+for res := range out {
+	if res.Err != nil {
+		// Output: "worker panicked: malformed byte payload crash!"
+		fmt.Println("Handled cleanly:", res.Err)
 	}
 }
 ```
