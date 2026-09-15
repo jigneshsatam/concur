@@ -1,11 +1,11 @@
 # concur 🏎️
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jigneshsatam/concur.svg)](https://pkg.go.dev/github.com/jigneshsatam/concur)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/jigneshsatam/concur)
 [![Build Pipeline Status 🏎️](https://github.com/jigneshsatam/concur/actions/workflows/go.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions/workflows/go.yml)
 [![Linter Status](https://github.com/jigneshsatam/concur/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions)
-[![License: MIT](https://shields.io)](https://opensource.org)
-[![License: MIT](https://shields.io)](https://github.com/jigneshsatam/concur/blob/main/LICENSE)
-
+[![GitHub License](https://img.shields.io/github/license/jigneshsatam/concur)](https://github.com/jigneshsatam/concur/blob/main/LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/jigneshsatam/concur)](https://github.com/jigneshsatam/concur/releases)
 
 `concur` is a lightweight, type-safe, production-ready Go library that implements the **Fan-Out / Fan-In** concurrency pattern using Go Generics.
 
