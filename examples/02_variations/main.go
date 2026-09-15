@@ -41,8 +41,8 @@ func runGroup1(ctx context.Context, opts concur.Options) {
 	drainStream("1. Full Match", out1)
 
 	// 2. Signature: func(ctx, In) Out
-	in2 := makeChan(10)
-	out2 := concur.Process(ctx, in2, opts, func(ctx context.Context, item int) (string, error) {
+	in2 := []int{1, 2, 3, 4, 5}
+	out2 := concur.ProcessSlice(ctx, in2, opts, func(ctx context.Context, item int) (string, error) {
 		return fmt.Sprintf("G1-P2-%d", item), nil
 	})
 	drainStream("2. No Error Return", out2)
@@ -74,8 +74,8 @@ func runGroup2(ctx context.Context, opts concur.Options) {
 	fmt.Println("\n--- Group 2: (Item Only) Signatures ---")
 
 	// 5. Signature: func(In) (Out, error)
-	in5 := makeChan(20)
-	out5 := concur.Process(ctx, in5, opts, func(ctx context.Context, item int) (string, error) {
+	in5 := []int{20}
+	out5 := concur.ProcessSlice(ctx, in5, opts, func(ctx context.Context, item int) (string, error) {
 		return fmt.Sprintf("G2-P5-%d", item), nil
 	})
 	drainStream("5. Standard Go Return", out5)
@@ -136,6 +136,54 @@ func runGroup3(ctx context.Context, opts concur.Options) {
 		return empty{}, nil
 	})
 	drainStream("12. Pure Standalone Job", out12)
+
+	// =========================================================================
+	// BONUS: Slice-Based Adaptive Patterns
+	// =========================================================================
+	// Both ProcessSlice and FromSlice natively inherit the exact same execution model
+	// since they use the same underlying generic core engine.
+	fmt.Println("\n--- Evaluating Slice-Based Adaptive Closures ---")
+
+	type DB struct{}
+	mockClientDB := &DB{}
+
+	// Define some dummy structures to support our various signatures
+	type DataIn struct{ ID int }
+	type DataOut struct{ Val string }
+
+	staticData := []DataIn{{ID: 201}, {ID: 202}, {ID: 203}}
+
+	// Pattern A: ProcessSlice adapting a legacy non-standard function (No Context/No Error)
+	legacyFunc := func(in DataIn) DataOut {
+		return DataOut{Val: fmt.Sprintf("Slice-Legacy-%d", in.ID)}
+	}
+
+	sliceStream := concur.ProcessSlice(ctx, staticData, opts, func(_ context.Context, in DataIn) (DataOut, error) {
+		// Closure handles normalization step smoothly
+		return legacyFunc(in), nil
+	})
+
+	for r := range sliceStream {
+		if r.Err == nil {
+			fmt.Printf("[ProcessSlice Adapter Output]: %s\n", r.Value.Val)
+		}
+	}
+
+	// Pattern B: FromSlice converting data into streams that accept heavy dependencies
+	streamChan := concur.FromSlice(ctx, staticData, len(staticData))
+
+	dependentStream := concur.Process(ctx, streamChan, opts, func(c context.Context, in DataIn) (bool, error) {
+		// Complete lexical closure access to 'mockClientDB'
+		_ = mockClientDB
+		return true, nil
+	})
+
+	for r := range dependentStream {
+		_ = r.Value
+	}
+
+	fmt.Println("✨ Reference execution finalized successfully!")
+
 }
 
 func makeChan(val int) chan int {

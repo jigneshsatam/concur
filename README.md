@@ -1,5 +1,12 @@
 # concur 🏎️
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/jigneshsatam/concur.svg)](https://pkg.go.dev/github.com/jigneshsatam/concur)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/jigneshsatam/concur)
+[![Build Pipeline Status 🏎️](https://github.com/jigneshsatam/concur/actions/workflows/go.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions/workflows/go.yml)
+[![Linter Status](https://github.com/jigneshsatam/concur/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions)
+[![GitHub License](https://img.shields.io/github/license/jigneshsatam/concur)](https://github.com/jigneshsatam/concur/blob/main/LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/jigneshsatam/concur)](https://github.com/jigneshsatam/concur/releases)
+
 `concur` is a lightweight, type-safe, production-ready Go library that implements the **Fan-Out / Fan-In** concurrency pattern using Go Generics.
 
 It distributes resource-heavy workloads across a controlled pool of parallel workers and multiplexes their results back into a single fanned-in stream, completely preventing unbounded goroutine leaks, data races, and memory spikes.
@@ -68,21 +75,20 @@ type ProcessOutput struct {
 func main() {
 	ctx := context.Background()
 
-	// 1. Populate the work stream queue
-	inputChan := make(chan ProcessInput, 3)
-	inputChan <- ProcessInput{TaskID: 1, TargetIP: "192.168.1.5"}
-	inputChan <- ProcessInput{TaskID: 2, TargetIP: "10.0.0.1"} // Malformed error item
-	inputChan <- ProcessInput{TaskID: 3, TargetIP: "192.168.1.9"}
-	close(inputChan)
+	inputArray := []ProcessInput {
+		ProcessInput{TaskID: 1, TargetIP: "192.168.1.5"},
+		ProcessInput{TaskID: 2, TargetIP: "10.0.0.1"}, // Malformed error item
+		ProcessInput{TaskID: 3, TargetIP: "192.168.1.9"},
+	}
 
-	// 2. Configure behavior (0 workers automatically defaults to 4)
+	// 1. Configure behavior (0 workers automatically defaults to 4)
 	opts := concur.Options{
-		Workers:     0,
+		Workers:     4,
 		StopOnError: false, // Continue executing the queue if an item errors out
 	}
 
-	// 3. Fire up the fanned-out pool using a Closure Adapter
-	resultsStream := concur.Process(ctx, inputChan, opts, func(ctx context.Context, item ProcessInput) (ProcessOutput, error) {
+	// 2. Fire up the fanned-out pool using a Closure Adapter
+	resultsStream := concur.ProcessSlice(ctx, inputArray, opts, func(ctx context.Context, item ProcessInput) (ProcessOutput, error) {
 		if item.TargetIP == "10.0.0.1" {
 			return ProcessOutput{}, errors.New("network routing rejection")
 		}
@@ -99,6 +105,36 @@ func main() {
 	}
 }
 ```
+
+## 📦 Slice Utilities (No Channel Boilerplate)
+
+Instead of manually instantiating input channels, pushing elements, and handling channel closures, `concur` provides native generic utilities to process raw Go slices instantly.
+
+### ⚡ Direct Processing: `ProcessSlice`
+Pass a static array or slice straight into the pipeline. `concur` handles the underlying channel lifecycle entirely under the hood.
+
+```go
+inputs := []string{"apple", "banana", "cherry"}
+
+// Processes slice values immediately using concurrent worker pools
+results := concur.ProcessSlice(ctx, inputs, opts, func(ctx context.Context, item string) (int, error) {
+    return len(item), nil
+})
+```
+
+### 🌊 Stream Conversion: `FromSlice`
+Convert an existing static slice into an isolated, context-aware read-only channel asynchronously. This is excellent when you need a stream that plays nicely with context cancellations.
+
+```go
+items := []int{10, 20, 30}
+
+// Returns a <-chan int that closes when the slice drains or if ctx cancels
+inputChan := concur.FromSlice(ctx, items, len(items))
+
+// Feed it to your core process architecture
+results := concur.Process(ctx, inputChan, opts, workerFunc)
+```
+
 
 ---
 

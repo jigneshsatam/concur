@@ -31,18 +31,18 @@ func main() {
 	defer cancel()
 
 	// 1. Setup Data Feed
-	sourceChan := make(chan RawText, 3)
-	sourceChan <- RawText{ID: 1, Paragraph: "Go concurrency pipelines are fast and type-safe."}
-	sourceChan <- RawText{ID: 2, Paragraph: "Fan-out distributes workloads cleanly across pools."}
-	sourceChan <- RawText{ID: 3, Paragraph: "Avoid memory leaks by closing your channels safely."}
-	close(sourceChan)
+	rawTextSlice := []RawText{
+		RawText{ID: 1, Paragraph: "Go concurrency pipelines are fast and type-safe."},
+		RawText{ID: 2, Paragraph: "Fan-out distributes workloads cleanly across pools."},
+		RawText{ID: 3, Paragraph: "Avoid memory leaks by closing your channels safely."},
+	}
 
 	// ============================================================================
 	// STAGE 1: Parallel Ingestion & Tokenization (4 Workers)
 	// ============================================================================
 	stage1Opts := concur.Options{Workers: 4, StopOnError: true}
 
-	stage1Stream := concur.Process(ctx, sourceChan, stage1Opts, func(ctx context.Context, item RawText) (TokenizedText, error) {
+	stage1Stream := concur.ProcessSlice(ctx, rawTextSlice, stage1Opts, func(ctx context.Context, item RawText) (TokenizedText, error) {
 		// Simulate computation/string parsing latency
 		time.Sleep(10 * time.Millisecond)
 

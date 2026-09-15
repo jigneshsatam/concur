@@ -52,3 +52,54 @@ func BenchmarkConcurPool(b *testing.B) {
 		}
 	}
 }
+
+// ============================================================================
+// Slice Processing Benchmarks
+// ============================================================================
+
+// mockHeavyWork simulates an I/O bound or CPU-heavy processing task (e.g., API calls, DB writes)
+func mockHeavyWork(val int) int {
+	time.Sleep(1 * time.Millisecond) // Artificial micro-delay to simulate real-world workloads
+	return val * 2
+}
+
+// BenchmarkSequentialSlice Processing runs a standard single-threaded loop for baseline comparison
+func BenchmarkSequentialSlice(b *testing.B) {
+	input := make([]int, 100)
+	for i := 0; i < 100; i++ {
+		input[i] = i
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		output := make([]int, len(input))
+		for idx, item := range input {
+			output[idx] = mockHeavyWork(item)
+		}
+	}
+}
+
+// BenchmarkConcurProcessSlice tracks the performance of your new automated slice-to-channel concurrent pipeline
+func BenchmarkConcurProcessSlice(b *testing.B) {
+	ctx := context.Background()
+	input := make([]int, 100)
+	for i := 0; i < 100; i++ {
+		input[i] = i
+	}
+
+	opts := concur.Options{
+		Workers:     10, // Leverages 10 concurrent routines to distribute the 100 items
+		StopOnError: false,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resChan := concur.ProcessSlice(ctx, input, opts, func(ctx context.Context, item int) (int, error) {
+			return mockHeavyWork(item), nil
+		})
+
+		// Drain the fanned-in pipeline completely to ensure accuracy in benchmark timing
+		for range resChan {
+		}
+	}
+}
