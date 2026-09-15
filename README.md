@@ -1,6 +1,7 @@
 # concur 🏎️
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jigneshsatam/concur.svg)](https://pkg.go.dev/github.com/jigneshsatam/concur)
+[![Go Coverage](https://github.com/jigneshsatam/concur/wiki/coverage.svg)](https://github.com/jigneshsatam/concur/wiki/coverage.svg)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/jigneshsatam/concur)
 [![Build Pipeline Status 🏎️](https://github.com/jigneshsatam/concur/actions/workflows/go.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions/workflows/go.yml)
 [![Linter Status](https://github.com/jigneshsatam/concur/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/jigneshsatam/concur/actions)
