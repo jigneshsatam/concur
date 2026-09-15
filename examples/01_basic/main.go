@@ -8,6 +8,11 @@ import (
 	"github.com/jigneshsatam/concur"
 )
 
+// SquareNumber is a simple, decoupled pure function
+func SquareNumber(n int) int {
+	return n * n
+}
+
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -27,7 +32,8 @@ func main() {
 	close(inChan)
 
 	resChanA := concur.Process(ctx, inChan, opts, func(ctx context.Context, n int) (int, error) {
-		return n * n, nil
+		result := SquareNumber(n)
+		return result, nil
 	})
 
 	for res := range resChanA {
@@ -43,7 +49,8 @@ func main() {
 
 	// No channel declaration, no manual seeding, no manual closing!
 	resChanB := concur.ProcessSlice(ctx, numbers, opts, func(ctx context.Context, n int) (int, error) {
-		return n * n, nil
+		result := SquareNumber(n)
+		return result, nil
 	})
 
 	for res := range resChanB {

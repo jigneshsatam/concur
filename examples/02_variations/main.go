@@ -41,8 +41,8 @@ func runGroup1(ctx context.Context, opts concur.Options) {
 	drainStream("1. Full Match", out1)
 
 	// 2. Signature: func(ctx, In) Out
-	in2 := makeChan(10)
-	out2 := concur.Process(ctx, in2, opts, func(ctx context.Context, item int) (string, error) {
+	in2 := []int{1, 2, 3, 4, 5}
+	out2 := concur.ProcessSlice(ctx, in2, opts, func(ctx context.Context, item int) (string, error) {
 		return fmt.Sprintf("G1-P2-%d", item), nil
 	})
 	drainStream("2. No Error Return", out2)
@@ -74,8 +74,8 @@ func runGroup2(ctx context.Context, opts concur.Options) {
 	fmt.Println("\n--- Group 2: (Item Only) Signatures ---")
 
 	// 5. Signature: func(In) (Out, error)
-	in5 := makeChan(20)
-	out5 := concur.Process(ctx, in5, opts, func(ctx context.Context, item int) (string, error) {
+	in5 := []int{20}
+	out5 := concur.ProcessSlice(ctx, in5, opts, func(ctx context.Context, item int) (string, error) {
 		return fmt.Sprintf("G2-P5-%d", item), nil
 	})
 	drainStream("5. Standard Go Return", out5)
