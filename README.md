@@ -100,6 +100,36 @@ func main() {
 }
 ```
 
+## 📦 Slice Utilities (No Channel Boilerplate)
+
+Instead of manually instantiating input channels, pushing elements, and handling channel closures, `concur` provides native generic utilities to process raw Go slices instantly.
+
+### ⚡ Direct Processing: `ProcessSlice`
+Pass a static array or slice straight into the pipeline. `concur` handles the underlying channel lifecycle entirely under the hood.
+
+```go
+inputs := []string{"apple", "banana", "cherry"}
+
+// Processes slice values immediately using concurrent worker pools
+results := concur.ProcessSlice(ctx, inputs, opts, func(ctx context.Context, item string) (int, error) {
+    return len(item), nil
+})
+```
+
+### 🌊 Stream Conversion: `FromSlice`
+Convert an existing static slice into an isolated, context-aware read-only channel asynchronously. This is excellent when you need a stream that plays nicely with context cancellations.
+
+```go
+items := []int{10, 20, 30}
+
+// Returns a <-chan int that closes when the slice drains or if ctx cancels
+inputChan := concur.FromSlice(ctx, items, len(items))
+
+// Feed it to your core process architecture
+results := concur.Process(ctx, inputChan, opts, workerFunc)
+```
+
+
 ---
 
 ## 📂 Repository Structure & Examples

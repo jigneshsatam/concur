@@ -8,40 +8,47 @@ import (
 	"github.com/jigneshsatam/concur"
 )
 
-// SquareNumber is a simple, decoupled pure function
-func SquareNumber(n int) int {
-	return n * n
-}
-
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	// 1. Create a simple data stream
-	numChan := make(chan int, 5)
-	for i := 1; i <= 5; i++ {
-		numChan <- i
+	opts := concur.Options{Workers: 3, StopOnError: true}
+	numbers := []int{1, 2, 3, 4, 5}
+
+	// ---------------------------------------------------------
+	// APPROACH A: The Traditional Way (Channels)
+	// ---------------------------------------------------------
+	fmt.Println("--- Approach A: Standard Input Channels ---")
+
+	inChan := make(chan int, len(numbers))
+	for _, n := range numbers {
+		inChan <- n
 	}
-	close(numChan)
+	close(inChan)
 
-	// 2. Configure 4 parallel workers
-	opts := concur.Options{
-		Workers:     4,
-		StopOnError: false,
-	}
-
-	fmt.Println("🌟 [Basic Example] Squaring Numbers in Parallel...")
-
-	// 3. Fire up the fanned-out processing pipeline
-	squareStream := concur.Process(ctx, numChan, opts, func(ctx context.Context, item int) (int, error) {
-		result := SquareNumber(item) // Separated pure business function
-		return result, nil           // Wrapped into the pipeline closure layout
+	resChanA := concur.Process(ctx, inChan, opts, func(ctx context.Context, n int) (int, error) {
+		return n * n, nil
 	})
 
-	// 4. Drain fanned-in results natively
-	for res := range squareStream {
-		fmt.Printf("   👉 Input Item squared: %d\n", res.Value)
+	for res := range resChanA {
+		if res.Err == nil {
+			fmt.Printf("Channel Result: %d\n", res.Value)
+		}
 	}
 
-	fmt.Println("🏁 Basic concurrent execution complete!")
+	// ---------------------------------------------------------
+	// APPROACH B: The Modern Way (New ProcessSlice Feature)
+	// ---------------------------------------------------------
+	fmt.Println("\n--- Approach B: Zero-Boilerplate ProcessSlice ---")
+
+	// No channel declaration, no manual seeding, no manual closing!
+	resChanB := concur.ProcessSlice(ctx, numbers, opts, func(ctx context.Context, n int) (int, error) {
+		return n * n, nil
+	})
+
+	for res := range resChanB {
+		if res.Err == nil {
+			fmt.Printf("Slice Result: %d\n", res.Value)
+		}
+	}
 }

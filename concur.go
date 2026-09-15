@@ -99,3 +99,47 @@ func Process[In any, Out any](
 
 	return out
 }
+
+// FromSlice safely converts a slice into a read-only channel asynchronously.
+// The channel closes automatically when all items are sent or if the context is cancelled.
+func FromSlice[T any](ctx context.Context, slice []T, bufferSize int) <-chan T {
+	out := make(chan T, bufferSize)
+
+	go func() {
+		defer close(out)
+		for _, item := range slice {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- item:
+			}
+		}
+	}()
+
+	return out
+}
+
+// ProcessSlice accepts a raw slice, wraps it using FromSlice, and feeds it
+// directly into the core Process runner.
+func ProcessSlice[In any, Out any](
+	ctx context.Context,
+	inputSlice []In,
+	opts Options,
+	workerFunc func(context.Context, In) (Out, error),
+) <-chan Result[Out] {
+
+	// If the slice is completely empty, short-circuit immediately
+	// to avoid spinning up unnecessary background threads.
+	if len(inputSlice) == 0 {
+		out := make(chan Result[Out])
+		close(out)
+		return out
+	}
+
+	// Clean code reuse: Convert the slice to an asynchronous channel stream.
+	// We set the buffer size equal to the slice length for optimal throughput.
+	inputChan := FromSlice(ctx, inputSlice, len(inputSlice))
+
+	// Pass the converted channel directly into your core Process logic!
+	return Process(ctx, inputChan, opts, workerFunc)
+}
