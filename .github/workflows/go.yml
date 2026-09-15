@@ -33,8 +33,8 @@ jobs:
       - name: Verify Benchmarks 📊
         run: go test -bench=. -benchmem -benchtime=1x ./...
 
-      - name: Update coverage report
-        uses: ncruces/go-coverage-report@v0
-        with:
-          # Optional: Accepts 'flat' (default), 'flat-square', 'for-the-badge'
-          badge-style: flat
+      # - name: Update coverage report
+      #   uses: ncruces/go-coverage-report@v0
+      #   with:
+      #     # Optional: Accepts 'flat' (default), 'flat-square', 'for-the-badge'
+      #     badge-style: flat
